@@ -1,22 +1,12 @@
-CFLAGS = -Wall -g -pthread -o server
-PROGS = mos main
-PROGRAM_NAME = server
-CC = gcc-14
+CC = gcc
+CFLAGS = -Wall -Wextra -g
+OBJ = main.o buffer.o evaluation.o timer.o ./cJSON/cJSON.o ./ws/ws.o ./ws/utf8.o ./ws/sha1.o ./ws/handshake.o ./ws/base64.o
 
-all: $(PROGS)
+main: $(OBJ)
+	$(CC) $(CFLAGS) -o main $(OBJ)
 
-main: main.c
-	$(CC) $(CFLAGS) -o $@ $^
-
-mos: mos.c
-	$(CC) $(CFLAGS) -o $@ $^
+%.o: %.c
+	$(CC) $(CFLAGS) -c $< -o $@
 
 clean:
-	rm -f *.o
-	rm -f $(PROGS)
-
-install:
-	cp $(PROGS) $(TARGETDIR)/bin
-
-run:
-	./main
+	rm -f *.o main

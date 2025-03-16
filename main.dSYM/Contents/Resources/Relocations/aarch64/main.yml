@@ -2,11 +2,16 @@
 triple:          'arm64-apple-darwin'
 binary-path:     main
 relocations:
-  - { offset: 0x19, size: 0x8, addend: 0x0, symName: _evaluation_task, symObjAddr: 0x0, symBinAddr: 0x100003C94, symSize: 0x24 }
-  - { offset: 0x34E, size: 0x8, addend: 0x0, symName: _eval_started, symObjAddr: 0x12B8, symBinAddr: 0x100008008, symSize: 0x0 }
-  - { offset: 0x36B, size: 0x8, addend: 0x0, symName: _N, symObjAddr: 0x1A8, symBinAddr: 0x100008000, symSize: 0x0 }
-  - { offset: 0x381, size: 0x8, addend: 0x0, symName: _p, symObjAddr: 0x1AC, symBinAddr: 0x100008004, symSize: 0x0 }
-  - { offset: 0x397, size: 0x8, addend: 0x0, symName: _buffer, symObjAddr: 0x12C0, symBinAddr: 0x100008010, symSize: 0x0 }
-  - { offset: 0x3B1, size: 0x8, addend: 0x0, symName: _main, symObjAddr: 0x24, symBinAddr: 0x100003CB8, symSize: 0x184 }
-  - { offset: 0x418, size: 0x8, addend: 0x0, symName: _evaluation_task, symObjAddr: 0x0, symBinAddr: 0x100003C94, symSize: 0x24 }
+  - { offset: 0x19, size: 0x8, addend: 0x0, symName: _timeInMilliseconds, symObjAddr: 0x0, symBinAddr: 0x1000037B4, symSize: 0x6C }
+  - { offset: 0x396, size: 0x8, addend: 0x0, symName: _eval_started, symObjAddr: 0x1EF0, symBinAddr: 0x100008008, symSize: 0x0 }
+  - { offset: 0x3B3, size: 0x8, addend: 0x0, symName: _N, symObjAddr: 0x5C0, symBinAddr: 0x100008000, symSize: 0x0 }
+  - { offset: 0x3C9, size: 0x8, addend: 0x0, symName: _p, symObjAddr: 0x5C4, symBinAddr: 0x100008004, symSize: 0x0 }
+  - { offset: 0x3DF, size: 0x8, addend: 0x0, symName: _buffer, symObjAddr: 0x1EF8, symBinAddr: 0x100008010, symSize: 0x0 }
+  - { offset: 0x3FB, size: 0x8, addend: 0x0, symName: _start, symObjAddr: 0x1F00, symBinAddr: 0x100008018, symSize: 0x0 }
+  - { offset: 0x411, size: 0x8, addend: 0x0, symName: _end, symObjAddr: 0x1F08, symBinAddr: 0x100008020, symSize: 0x0 }
+  - { offset: 0x455, size: 0x8, addend: 0x0, symName: _main, symObjAddr: 0x41C, symBinAddr: 0x100003BD0, symSize: 0x1A4 }
+  - { offset: 0x4BF, size: 0x8, addend: 0x0, symName: _evaluation_task, symObjAddr: 0x244, symBinAddr: 0x1000039F8, symSize: 0x1D8 }
+  - { offset: 0x547, size: 0x8, addend: 0x0, symName: _print_buffer, symObjAddr: 0x1D4, symBinAddr: 0x100003988, symSize: 0x70 }
+  - { offset: 0x5A1, size: 0x8, addend: 0x0, symName: _slice_buffer, symObjAddr: 0x6C, symBinAddr: 0x100003820, symSize: 0x168 }
+  - { offset: 0x64E, size: 0x8, addend: 0x0, symName: _timeInMilliseconds, symObjAddr: 0x0, symBinAddr: 0x1000037B4, symSize: 0x6C }
 ...
