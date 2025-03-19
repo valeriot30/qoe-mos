@@ -3,3 +3,4 @@ venv
 main
 /*.o
 _segments
+segments
