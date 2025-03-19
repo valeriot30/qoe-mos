@@ -2,21 +2,12 @@
 
 void slice_buffer(buffer* buffer, int n, int slice) {
 
-
-    slice = slice % n;
-
-    int temp[n];
-    
-    for (int i = 0; i < n; i++) {
-        temp[i] = buffer->data[(i + slice) % n];
-    }
-   
-    for (int i = 0; i < n; i++) {
-        buffer->data[i] = temp[i];
+    for (int i = 0; i < n - slice; i++) {
+        buffer->data[i] = buffer->data[i + slice];
     }
 
-    for(int i = (n - slice); i < n; i++) {
-    	buffer->data[i] = 0;
+    for (int i = n - slice; i < n; i++) {
+        buffer->data[i] = 0;
     }
 
     buffer->write_idx -= slice;
@@ -31,22 +22,27 @@ int get_buffer_size(buffer* buffer) {
 }
 
 void add_element(buffer* buffer, int element) {
-    if(element < 0)
+    if(element < -1)
         return;
 
     if(buffer->data == NULL)
         return;
 
+    //pthread_mutex_lock(&buffer->lock);
     buffer->data[buffer->write_idx] = element;
 
     buffer->write_idx++;
+
+    //if(buffer != -1)
     buffer->counter++;
+
+    //pthread_mutex_unlock(&buffer->lock);
 
     return;
 }
 
 bool is_still_stalling(buffer* buffer) {
-    return buffer->data[buffer->write_idx] == -1;
+    return buffer->data[buffer->write_idx - 1] == -1;
 }
 
 buffer* create_buffer(int K) {
@@ -65,9 +61,11 @@ buffer* create_buffer(int K) {
 
     buffer_instance->K = K;
     buffer_instance->write_idx = 0;
-    buffer_instance->counter = 0;
-    buffer_instance->segments_after_stall = 0;
-    buffer_instance->is_sliding = false;
+    buffer_instance->counter = 1;
+    //buffer_instance->segments_after_stall = 0;
+    //buffer_instance->is_sliding = false;
+
+    //pthread_mutex_init(&buffer_instance->lock, NULL);
 
     return buffer_instance;
 }
@@ -76,7 +74,7 @@ void print_buffer(buffer* buffer) {
 	
 	for(int i = 0; i < buffer->K; i++) {
 
-		//if(buffer[i] == 0) continue;
+		//if(buffer->data[i] == 0) continue;
 
 		printf("| %d |", buffer->data[i]);
 	}

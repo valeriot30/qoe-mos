@@ -1,7 +1,7 @@
 
 #include "evaluation.h"
 
-static inline void generate_evaluation_command(evaluation_data* data, char* output) {
+void generate_evaluation_command(evaluation_data* data, char* output) {
 
   int* buffer = data->buffer->data;
 
@@ -16,13 +16,13 @@ static inline void generate_evaluation_command(evaluation_data* data, char* outp
   bool stall_occurred;
   int current_stall_position = 0;
 
+  current_stall_position++;
+
   char command[1024];
 
-  strcpy(command, "python3.10 evaluate.py ");
+  strcpy(command, "python3 evaluate.py ");
   for (int j = 0; j < data->N; j++) 
   {
-
-    if(buffer[j] == -1) continue;
 
     if(buffer[j] == 0) continue;
 
@@ -50,6 +50,8 @@ static inline void generate_evaluation_command(evaluation_data* data, char* outp
   char tmp[256];
 
   stalls_to_string(stalls, K, tmp, 256);
+
+  //printf("%s \n ", tmp);
 
   strcat(command, tmp);
 
@@ -84,22 +86,42 @@ evaluation_data* create_evaluation_data(int N, int p, buffer* assigned_buffer) {
 
   data->N = N;
   data->p = p;
+
+  INFO_LOG("Initialized evaluation with N: %d, p: %d", data->N, data->p);
+
   data->started = false;
   data->buffer = assigned_buffer;
   data->segments_received_in_p = 0;
+  data->last_output = NULL;
 
   return data;
 }
 
+void print_evaluation_window(evaluation_data* data) {
+  for(int i = 0; i < data->N; i++) {
+
+    if(data->buffer->data[i] == 0) continue;
+
+    printf("| %d |", data->buffer->data[i]);
+  }
+  printf("\n");
+}
+
 void* evaluation_task(evaluation_data* data) {
 
-  data->segments_received_in_p = 0;
+  if(data == NULL){
+    exit(1);
+  }
 
   char command[1024]; // output
   generate_evaluation_command(data, command);
 
   // disable warning messages (from stdout)
   freopen(NULL_DEVICE, "w", stderr);
+
+  //printf("Executing command: %s \n", command);
+
+  long long start = timeInMilliseconds();
 
   FILE* fp = popen(command, "r");
 
@@ -124,21 +146,41 @@ void* evaluation_task(evaluation_data* data) {
   	 exit(1);
   }
 
+  long long end = timeInMilliseconds() - start;
+
+  if((end) > data->p){
+    ERROR_LOG("Warning: evaluation time [%f] is greater than p, system may diverge", (float) end / 1000);
+  }
+
   char *output_string = cJSON_Print(output_json);
 
-  int result = ws_sendframe_txt(1, output_string);
+  if(output_string == NULL) {
+    return NULL;
+  }
+
+  /*int result = ws_sendframe_txt(1, output_string);
 
   if(result == -1) {
   	printf("Error sending back the frame");
   	exit(1);
-  }
+  }*/
 
-  const cJSON* O46 = cJSON_GetObjectItemCaseSensitive(output_json, "O46");
+  //const cJSON* O46 = cJSON_GetObjectItemCaseSensitive(output_json, "O46");
   print_buffer(data->buffer);
 
-  INFO_LOG("MOS");
+  if(data->last_output != NULL) {
+    free(data->last_output);
+  }
 
-  slice_buffer(data->buffer, data->N, data->p);
+  data->last_output = (char*) malloc(sizeof(char) * (strlen(output_string) + 1));
+  strcpy(data->last_output, output_string);
+
+  //INFO_LOG("MOS");
+
+  if(data->started)
+    slice_buffer(data->buffer, data->buffer->K, (data->p));
+
+  data->segments_received_in_p = 0;
 
   free(output_string);
   free(output_json);

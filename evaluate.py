@@ -39,6 +39,7 @@ def main():
     #print("Segments:", segment_files)
 
     input_report = main_script.Extractor(input_files=segment_files, mode=1).extract()
+    print(input_report)
     input_report["I23"]["stalling"] = stalls
 
     itu_p1203 = P1203Standalone(
@@ -47,7 +48,7 @@ def main():
         quiet=False,
         amendment_1_audiovisual=False,
         amendment_1_stalling=False,
-        amendment_1_app_2=True,
+        amendment_1_app_2=False,
         fast_mode=False,
     )
 

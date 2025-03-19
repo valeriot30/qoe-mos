@@ -1,6 +1,8 @@
 #include "timer.h"
 
-static inline long long timeInMilliseconds(void) {
+static unsigned int current_timer_id = 0;
+
+long long timeInMilliseconds(void) {
     struct timeval tv;
 
     gettimeofday(&tv,NULL);
@@ -21,22 +23,30 @@ void* timer_task(void* thread_args) {
   		sched_setscheduler(getpid(), SCHED_RR, NULL);
   	#endif
 
-	while(true) {
+    if(data->print_debug) {
+      INFO_LOG("Timer [%d] has started ", current_timer_id);
+    }
+
+	while(1) {
 		if(data->condition) {
 
-			if(data->print_debug) {
-				fflush(stdout);
-			}
+			//if(data->print_debug) {
+			//	fflush(stdout);
+			//}
 
 			if (data->start > 0)
+      {
     			data->end = timeInMilliseconds() - data->start;
+      }
 
-    		if(data->print_debug) {
-    			//INFO_LOG("Time took: %lld\n", data->end);
-    		}
+    	if(data->print_debug) {
+    		INFO_LOG("Time took: %lld ms \n", data->end);
+    	}
 			(data->task)();
+
+      data->start = timeInMilliseconds();
+      usleep(data->interval * 1000000);
 		}
-		sleep(data->interval / 1000);
 	}
 
 	free(data);
@@ -61,10 +71,7 @@ int resume_timer(timer* timer) {
   if(timer == NULL) {
     return 1;
   }
-
   timer->data->condition = true;
-
-  
   return 0;
 }
 
@@ -95,10 +102,10 @@ timer* create_timer_cond(void* task, int interval, bool condition, bool print_de
         return NULL;
     }
 
-  	thread_timer_data->interval = interval;
-  	thread_timer_data->condition = condition;
-  	thread_timer_data->task = task;
-  	thread_timer_data->print_debug = print_debug;
+  thread_timer_data->interval = interval;
+  thread_timer_data->condition = condition;
+  thread_timer_data->task = task;
+  thread_timer_data->print_debug = print_debug;
 
   curr_timer->data = thread_timer_data;
 
@@ -110,12 +117,14 @@ timer* create_timer_cond(void* task, int interval, bool condition, bool print_de
 	#endif
 
 	if (ret != 0) {
-        perror("pthread_create failed");
-        free(thread_timer_data);
-        return NULL;
+      perror("pthread_create failed");
+      free(thread_timer_data);
+      return NULL;
   }
 
   curr_timer->thread = timer_thread;
+
+  current_timer_id++;
 
 	return curr_timer;
 } 

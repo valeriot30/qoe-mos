@@ -36,6 +36,7 @@ struct timer {
 };
 typedef struct timer timer;
 
+long long timeInMilliseconds();
 timer* create_timer(void* task, int interval, bool print_debug);
 int resume_timer(timer* timer);
 int suspend_timer(timer* timer);
