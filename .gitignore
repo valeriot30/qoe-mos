@@ -1,6 +1,6 @@
-main.dSYM
+main.dSYM/
 venv
 main
 /*.o
 _segments
-segments
+segments/*

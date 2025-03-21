@@ -17,16 +17,23 @@
 #define TTY_DEVICE "/dev/tty"
 #endif
 
+
+#define FILE_PATH_SIZE 30
+#define SEGMENT_NUMBER_BYTES 4
+#define PLAYOUT_BUFFER_SIZE
+#define BUFFER_CMD_SIZE 1024
+
 struct buffer {
 	int K;
 	int* data;
-	bool is_sliding;
+
+	// duration of single elements
+	int duration;
+
 	// logical counter
 	int counter;
 
 	int write_idx;
-
-	int segments_after_stall;
 
 	pthread_mutex_t lock;
 };
