@@ -2,7 +2,7 @@
 
 void slice_buffer(buffer* buffer, int n, int slice) {
 
-    for (int i = 0; i < n - slice; i++) {
+    for (int i = 0; i < n - buffer->write_idx; i++) {
         buffer->data[i] = buffer->data[i + slice];
     }
 
@@ -41,6 +41,7 @@ void add_element(buffer* buffer, int element) {
     return;
 }
 
+// check if the last element of the array is -1
 bool is_still_stalling(buffer* buffer) {
     return buffer->data[buffer->write_idx - 1] == -1;
 }
@@ -62,8 +63,7 @@ buffer* create_buffer(int K) {
     buffer_instance->K = K;
     buffer_instance->write_idx = 0;
     buffer_instance->counter = 1;
-    //buffer_instance->segments_after_stall = 0;
-    //buffer_instance->is_sliding = false;
+    buffer_instance->duration = 2; // in seconds
 
     //pthread_mutex_init(&buffer_instance->lock, NULL);
 

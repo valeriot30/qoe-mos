@@ -1,7 +1,7 @@
 
 #include "evaluation.h"
 
-void generate_evaluation_command(evaluation_data* data, char* output) {
+int generate_evaluation_command(evaluation_data* data, char* output) {
 
   int* buffer = data->buffer->data;
 
@@ -20,21 +20,23 @@ void generate_evaluation_command(evaluation_data* data, char* output) {
 
   char command[1024];
 
+  int size = 0;
+
   strcpy(command, "python3 evaluate.py ");
   for (int j = 0; j < data->N; j++) 
   {
 
     if(buffer[j] == 0) continue;
 
-    char buf[22 + 4];
+    char buf[FILE_PATH_SIZE + sizeof(int)];
 
     if (buffer[j] == -1 && !stall_occurred) {
       stalls[current_stall_position].start = (j + 1);
-      stalls[current_stall_position].duration = 1;
+      stalls[current_stall_position].duration = data->buffer->duration;
       stall_occurred = true;
       continue;
     } else if (buffer[j] == -1 && stall_occurred) {
-      stalls[current_stall_position].duration = stalls[current_stall_position].duration + 1;
+      stalls[current_stall_position].duration = stalls[current_stall_position].duration + data->buffer->duration;
       stall_occurred = true;
       continue;
     } else if (buffer[j] != -1 && stall_occurred) {
@@ -43,7 +45,10 @@ void generate_evaluation_command(evaluation_data* data, char* output) {
     }
     snprintf(buf, sizeof(buf), "./segments/segment-%d.ts ", buffer[j]);
     strcat(command, buf);
+    size++;
   }
+
+  if(size == 0) return size;
 
   strcat(command, "-s ");
 
@@ -51,11 +56,13 @@ void generate_evaluation_command(evaluation_data* data, char* output) {
 
   stalls_to_string(stalls, K, tmp, 256);
 
-  //printf("%s \n ", tmp);
+  printf("%s \n ", tmp);
 
   strcat(command, tmp);
 
   memcpy(output, command, sizeof(command));
+
+  return size;
 }
 
 void set_started(evaluation_data* data, bool state) {

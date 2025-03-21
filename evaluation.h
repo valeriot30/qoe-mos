@@ -24,7 +24,7 @@ struct evaluation_data {
 typedef struct evaluation_data evaluation_data;
 
 void print_evaluation_window(evaluation_data* data);
-void generate_evaluation_command(evaluation_data* data, char* output);
+int generate_evaluation_command(evaluation_data* data, char* output);
 void* evaluation_task(evaluation_data* data);
 void increment_segments_received(evaluation_data* data);
 void set_started(evaluation_data* data, bool state);

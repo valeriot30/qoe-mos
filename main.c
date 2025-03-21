@@ -6,12 +6,15 @@ Copyright unime.it
 #include "buffer.h"
 #include "timer.h"
 #include "cJSON/cJSON.h"
+#include <semaphore.h>
 #include "evaluation.h"
 #include "ws/ws.h"
 #include "ws/base64.h"
 
 const int N = 10;
 const int p = 4;
+
+#define USE_MULTITHREADING_FOR_WS 1
 
 timer* stalling_timer;
 timer* evaluation_timer;
@@ -22,9 +25,17 @@ int segments_after_stall = 0;
 
 int last_segment_valid = 0;
 
-const int segment_duration = 2; // in seconds
+sem_t sem;
+sem_t sem_stalls;
 
-clock_t start, end;
+pthread_t thread_exec, thread_signal, stalling_thread, thread_send_stalling;
+
+bool running = true;
+
+clock_t start;
+clock_t end;
+
+bool is_stalling = false;
 
 void* eval_task() {
 
@@ -34,8 +45,33 @@ void* eval_task() {
 
   //->segments_received_in_p = 0;
 
-  char command[1024]; // output
-  generate_evaluation_command(eval_data, command);
+  char command[BUFFER_CMD_SIZE]; // output
+  int size = generate_evaluation_command(eval_data, command);
+
+  if(size == 0) {
+    is_stalling = true;
+
+    INFO_LOG("The window is full of stalls, giving MOS=1 as result");
+    cJSON *result = cJSON_CreateObject();
+
+    if(result == NULL) {
+      printf("failed creating the result object");
+      return NULL;
+    }
+
+    cJSON *output = NULL; 
+    output = cJSON_CreateString("1");
+    cJSON_AddItemToObject(result, "O46", output);
+
+    char* output_string = cJSON_Print(result);
+
+    if(ws_sendframe_txt(1, output_string) == -1) {
+      printf("Error sending back the frame");
+      return NULL;
+    }
+
+    return NULL;  
+  }
 
   // disable warning messages (from stdout)
   freopen(NULL_DEVICE, "w", stderr);
@@ -46,11 +82,12 @@ void* eval_task() {
 
   FILE* fp = popen(command, "r");
 
-  char path[2048];
+  char path[BUFFER_CMD_SIZE * 2];
 
   if (fp == NULL) {
     printf("Failed to run command\n" );
-    exit(1);
+    //exit(1);
+    return NULL;
   }
 
   while (fgets(path, sizeof(path), fp) != NULL) {
@@ -64,18 +101,19 @@ void* eval_task() {
 
   if(output_json == NULL) {
      printf("Failed to parse JSON\n" );
-     exit(1);
+     return NULL;
   }
 
   long long end = timeInMilliseconds() - start;
 
-  if((end / 1000) > segment_duration * eval_data->p){
+  if((end / 1000) > eval_data->buffer->duration * eval_data->p){
     ERROR_LOG("Warning: evaluation time [%f] is greater than p, system may diverge", (float) end / 1000);
   }
 
   char *output_string = cJSON_Print(output_json);
 
   if(output_string == NULL) {
+    ERROR_LOG("Invalid output string");
     return NULL;
   }
 
@@ -83,7 +121,7 @@ void* eval_task() {
 
   if(result == -1) {
     printf("Error sending back the frame");
-    exit(1);
+    return NULL;
   }
 
   const cJSON* O46 = cJSON_GetObjectItemCaseSensitive(output_json, "O46");
@@ -91,7 +129,8 @@ void* eval_task() {
 
   INFO_LOG("MOS: %f", O46->valuedouble);
 
-  slice_buffer(eval_data->buffer, eval_data->buffer->K, eval_data->p);
+  if(eval_data->started)
+    slice_buffer(eval_data->buffer, eval_data->buffer->K, eval_data->p);
 
   free(output_string);
   free(output_json);
@@ -99,40 +138,60 @@ void* eval_task() {
   return NULL;
 }
 
+void* thread_send_signal(void* arg) {
+    while(1) {
+        if(eval_data->started)
+        {
+          //printf("Thread 1: Waking up and signaling thread 2.\n");
+          sem_post(&sem);
+          sleep(p * eval_data->buffer->duration);
+        }
+    }
+    
+    running = false;
+    sem_post(&sem);
+
+    return NULL;
+}
+
+void* thread_execute_eval(void* arg) {
+    while (running) {
+      sem_wait(&sem);
+      eval_task();
+
+      //printf("Thread 2: Received signal and processing.\n");
+    }
+    //printf("Thread 2: Exiting.\n");
+    return NULL;
+}
+
+void* thread_send_stall(void* arg) {
+  while(1) {
+    if(is_stalling) {
+      sem_post(&sem_stalls);
+      sleep(eval_data->buffer->duration);
+    }
+  }
+
+  sem_post(&sem_stalls);  
+  return NULL;
+}
+
 void* stalling_task() {
-  add_element(eval_buffer, -1);
-  increment_segments_received(eval_data);
+  while(1)
+  {
+    if(is_stalling)
+    {
+      sem_wait(&sem_stalls);
+      add_element(eval_buffer, -1);
+      increment_segments_received(eval_data);
 
-  INFO_LOG("Adding stalling segment to the window");
+      INFO_LOG("Adding stalling segment to the window");
+    }
+  }
 
   return NULL;
 }
-
-void* send_mos() {
-  if(eval_data->last_output == NULL){
-      ERROR_LOG("MOS output is invalid");
-      return NULL;
-  }
-
-  cJSON* cjson = cJSON_Parse(eval_data->last_output);
-
-  if(cjson == NULL) {
-    ERROR_LOG("Cannot parse JSON");
-  }
-
-  const cJSON* O46 = cJSON_GetObjectItemCaseSensitive(cjson, "O46");
-
-  INFO_LOG("MOS: %f", O46->valuedouble);
-
-    //int result = ws_sendframe_txt(1, eval_data->last_output);
-
-    //if(result < 0) {
-   //   ERROR_LOG("Cannot send MOS to the client");
-    //}
-
-  return NULL;
-}
-
 
 bool check_file_mode(int argc, char *argv[]) {
     for (int i = 1; i < argc; i++) {
@@ -183,11 +242,12 @@ void onmessage(ws_cli_conn_t client,
     if(strcmp(msg, "-1") == 0) 
     {
       INFO_LOG("Adding stalling segment to the window");
-      resume_timer(stalling_timer);
+      is_stalling = true;
     }
     else {
 
-      suspend_timer(stalling_timer);
+      // this means that we received a valid segment (buffer is not stalling anymore)
+      is_stalling = false;
       size_t outlen;
 
 
@@ -197,16 +257,17 @@ void onmessage(ws_cli_conn_t client,
         return;
       }*/
 
+      // fix the endianess
       int segmentNumber;
-      memcpy(&segmentNumber, byteStream, 4);
+      memcpy(&segmentNumber, byteStream, SEGMENT_NUMBER_BYTES);
 
-      unsigned char *segmentData = byteStream + 4;
-      size_t segmentDataSize = outlen - 4;
+      unsigned char *segmentData = byteStream + SEGMENT_NUMBER_BYTES;
+      size_t segmentDataSize = outlen - SEGMENT_NUMBER_BYTES;
 
 
       printf("Segment: %d \n", segmentNumber);
 
-      if(eval_started(eval_data) && seconds < segment_duration) {
+      if(eval_started(eval_data) && seconds < eval_data->buffer->duration) {
         //INFO_LOG("Skipping segment atoo fast");
       }
 
@@ -217,7 +278,7 @@ void onmessage(ws_cli_conn_t client,
       }
 
 
-      char buf[21 + 4];
+      char buf[FILE_PATH_SIZE + sizeof(int)];
 
       snprintf(buf, sizeof(buf), "./segments/segment-%d.ts", segmentNumber);
       //printf("%s", buf);
@@ -236,11 +297,11 @@ void onmessage(ws_cli_conn_t client,
     	fclose(fptr);
 
       if(segmentNumber == (N) && !eval_started(eval_data)) {
-       //printf("Evaluation can start\n");
+        printf("Evaluation can start\n");
         set_started(eval_data, true);
       }
 
-      add_element(eval_buffer, counter);
+      add_element(eval_buffer, segmentNumber);
       last_segment_valid = counter;
     }
 
@@ -252,6 +313,9 @@ int main(int argc, char** argv) {
 	bool file_mode = check_file_mode(argc, argv);
 
 	eval_buffer = create_buffer(100);
+
+  sem_init(&sem, 0, 0);
+  sem_init(&sem_stalls, 0, 0);
 
   if(eval_buffer == NULL) {
     perror("error allocating memory");
@@ -267,7 +331,13 @@ int main(int argc, char** argv) {
     return 1;
   }
 
-  stalling_timer = create_timer_cond(stalling_task, 1 * segment_duration, false, true);
+  pthread_create(&thread_send_stalling, NULL, thread_send_stall, NULL);
+
+  pthread_create(&stalling_thread, NULL, stalling_task, NULL);
+
+  pthread_create(&thread_signal, NULL, thread_send_signal, NULL);
+
+  pthread_create(&thread_exec, NULL, thread_execute_eval, NULL);
 
 	if(file_mode) {
 		FILE* fptr;
@@ -318,16 +388,18 @@ int main(int argc, char** argv) {
 	         */
 	        .host = "localhost",
 	        .port = 3000,
-	        .thread_loop   = 2,
+	        .thread_loop   = USE_MULTITHREADING_FOR_WS,
 	        .timeout_ms    = 1000,
 	        .evs.onopen    = &onopen,
 	        .evs.onclose   = &onclose,
 	        .evs.onmessage = &onmessage
 	    });
 
-	}
+	}  
 
-  long long start = 0;
+  while(1);
+
+  /*long long start = 0;
   long long end = 0;
 
   while(1) {
@@ -342,7 +414,16 @@ int main(int argc, char** argv) {
       start = timeInMilliseconds();
       sleep(p * segment_duration);
     }
-  }
+  }*/
+
+ 
+    //printf("Thread 2: Exiting.\n");
+
+  pthread_join(thread_send_stalling, NULL);
+  pthread_join(stalling_thread, NULL);
+  pthread_join(thread_signal, NULL);
+  pthread_join(thread_exec, NULL);
+
 
 	free(eval_buffer);
 
