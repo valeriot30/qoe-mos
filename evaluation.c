@@ -13,7 +13,7 @@ int generate_evaluation_command(evaluation_data* data, char* output) {
     stalls[i].start = -1;
     stalls[i].duration = -1;
   }
-  bool stall_occurred;
+  bool stall_occurred = false;
   int current_stall_position = 0;
 
   current_stall_position++;
@@ -73,17 +73,6 @@ bool eval_started(evaluation_data* data) {
   return data->started;
 }
 
-int get_segments_received(evaluation_data* data) {
-  return data->segments_received_in_p;
-}
-
-void increment_segments_received(evaluation_data* data) {
-  if(data == NULL)
-    return;
-
-  data->segments_received_in_p++;
-}
-
 evaluation_data* create_evaluation_data(int N, int p, buffer* assigned_buffer) {
   evaluation_data* data = (evaluation_data*) malloc(sizeof(struct evaluation_data));
 
@@ -98,7 +87,6 @@ evaluation_data* create_evaluation_data(int N, int p, buffer* assigned_buffer) {
 
   data->started = false;
   data->buffer = assigned_buffer;
-  data->segments_received_in_p = 0;
   data->last_output = NULL;
 
   return data;
@@ -187,7 +175,7 @@ void* evaluation_task(evaluation_data* data) {
   if(data->started)
     slice_buffer(data->buffer, data->buffer->K, (data->p));
 
-  data->segments_received_in_p = 0;
+  //data->segments_received_in_p = 0;
 
   free(output_string);
   free(output_json);

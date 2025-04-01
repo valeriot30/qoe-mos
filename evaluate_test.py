@@ -40,7 +40,7 @@ def main():
 
     #print("Segments:", segment_files)
 
-    input_report = main_script.Extractor(input_files=segment_files, mode=1).extract()
+    input_report = main_script.Extractor(input_files=segment_files, mode=3).extract()
     print(input_report)
     input_report["I23"]["stalling"] = stalls
 

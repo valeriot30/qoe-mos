@@ -2,57 +2,6 @@
 
 static unsigned int current_timer_id = 0;
 
-long long timeInMilliseconds(void) {
-    struct timeval tv;
-
-    gettimeofday(&tv,NULL);
-    return (((long long)tv.tv_sec)*1000)+(tv.tv_usec/1000);
-}
-
-
-void* timer_task(void* thread_args) {
-	struct timer_data *data;
-    data = (struct timer_data *)thread_args;
-
-    if(data == NULL) {
-    	printf("Timer data is null\n");
-    	return NULL;
-    }
-
-    #if !defined(__APPLE__)
-  		sched_setscheduler(getpid(), SCHED_RR, NULL);
-  	#endif
-
-    if(data->print_debug) {
-      INFO_LOG("Timer [%d] has started ", current_timer_id);
-    }
-
-	while(1) {
-		if(data->condition) {
-
-			//if(data->print_debug) {
-			//	fflush(stdout);
-			//}
-
-			if (data->start > 0)
-      {
-    			data->end = timeInMilliseconds() - data->start;
-      }
-
-    	if(data->print_debug) {
-    		INFO_LOG("Time took: %lld ms \n", data->end);
-    	}
-			(data->task)();
-
-      data->start = timeInMilliseconds();
-      usleep(data->interval * 1000000);
-		}
-	}
-
-	free(data);
-
-	return NULL;
-}
 
 int cancel_timer(timer* timer) {
   if(timer == NULL) {
@@ -60,32 +9,73 @@ int cancel_timer(timer* timer) {
     return 1;
   }
 
-  pthread_cancel(timer->thread);
+  pthread_cancel(timer->thread_signaling);
+  pthread_cancel(timer->thread_executing);
   free(timer->data);
   free(timer);
 
   return 0;
 }
 
-int resume_timer(timer* timer) {
-  if(timer == NULL) {
-    return 1;
-  }
-  timer->data->condition = true;
-  return 0;
+
+void* thread_send_signal(void* arg) {
+
+    timer* data_timer = (struct timer*) arg;
+
+    if(data_timer == NULL) {
+      pthread_exit(NULL);
+    }
+
+    struct timer_data* data = (struct timer_data*) data_timer->data;
+
+    if(data == NULL) {
+      pthread_exit(NULL);
+    }
+    unsigned int interval = data->interval;
+
+    while(1) {
+        bool condition = *(data->condition);
+        
+        if(condition)
+        {
+          //printf("Thread 1: Waking up and signaling thread 2.\n");
+          sem_post(&(data_timer->semaphore));
+          sleep(interval);
+        }
+    }
+    
+    //running = false;
+    sem_post(&(data_timer->semaphore));
+
+    return NULL;
 }
 
-int suspend_timer(timer* timer) {
-  if(timer == NULL) {
-    return 1;
-  }
+void* thread_execute_task(void* arg) {
+    
+    timer* timer = (struct timer*) arg;
 
-  timer->data->condition = false;
+    if(timer == NULL) {
+      pthread_exit(NULL);
+    }
 
-  return 0;
+    struct timer_data* data = (struct timer_data*) timer->data;
+
+    if(data == NULL) {
+      pthread_exit(NULL);
+    }
+
+    while (1) {
+      sem_wait(&timer->semaphore);
+      (data->task)();
+
+      //printf("Thread 2: Received signal and processing.\n");
+    }
+    //printf("Thread 2: Exiting.\n");
+    return NULL;
 }
 
-timer* create_timer_cond(void* task, int interval, bool condition, bool print_debug) {
+
+timer* create_timer_cond(void* task, unsigned int interval, bool* condition, bool print_debug) {
 
   timer* curr_timer = (timer*) malloc(sizeof(struct timer));
 
@@ -102,6 +92,7 @@ timer* create_timer_cond(void* task, int interval, bool condition, bool print_de
         return NULL;
     }
 
+
   thread_timer_data->interval = interval;
   thread_timer_data->condition = condition;
   thread_timer_data->task = task;
@@ -109,22 +100,34 @@ timer* create_timer_cond(void* task, int interval, bool condition, bool print_de
 
   curr_timer->data = thread_timer_data;
 
-	pthread_t timer_thread;
-	int ret = pthread_create(&timer_thread, NULL, timer_task, (void*) thread_timer_data);
+  sem_init(&curr_timer->semaphore, 0, 0);
 
-	#if defined(__APPLE__)
+  pthread_t thread_signaling, thread_executing;
+
+	int ret = pthread_create(&(thread_signaling), NULL, thread_send_signal, (timer*) curr_timer);
+  ret = pthread_create(&(thread_executing), NULL, thread_execute_task, (timer*) curr_timer);
+	/*#if defined(__APPLE__)
 		pthread_setschedparam(&timer_thread, SCHED_RR, NULL);
-	#endif
+	#endif*/
 
 	if (ret != 0) {
       perror("pthread_create failed");
       free(thread_timer_data);
+      free(curr_timer);
       return NULL;
   }
 
-  curr_timer->thread = timer_thread;
+  curr_timer->thread_signaling = thread_signaling;
+  curr_timer->thread_executing = thread_executing;
 
   current_timer_id++;
 
 	return curr_timer;
 } 
+
+void timer_join(timer* timer) {
+  pthread_join(timer->thread_signaling, NULL);
+  pthread_join(timer->thread_executing, NULL);
+
+  sem_destroy(&(timer->semaphore));
+}

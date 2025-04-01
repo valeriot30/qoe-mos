@@ -8,7 +8,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-// this is for disabling stderr messages
+// this is for disabling stderr messages (for the itu-t standard)
 #ifdef _WIN32
 #define NULL_DEVICE "NUL:"
 #define TTY_DEVICE "COM1:"
@@ -49,6 +49,7 @@ typedef struct stall stall;
 void stalls_to_string(stall stalls[], int size, char *output, int output_size);
 int get_counter(buffer* buffer);
 buffer* create_buffer(int K);
+int get_segments_duration(buffer* buffer);
 bool is_still_stalling(buffer* buffer);
 void slice_buffer(buffer* buffer, int n, int slice);
 void print_buffer(buffer* buffer);
