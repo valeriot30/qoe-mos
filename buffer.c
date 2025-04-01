@@ -2,7 +2,7 @@
 
 void slice_buffer(buffer* buffer, int n, int slice) {
 
-    for (int i = 0; i < n - buffer->write_idx; i++) {
+    for (int i = 0; i < n - slice; i++) {
         buffer->data[i] = buffer->data[i + slice];
     }
 
@@ -68,6 +68,10 @@ buffer* create_buffer(int K) {
     //pthread_mutex_init(&buffer_instance->lock, NULL);
 
     return buffer_instance;
+}
+
+int get_segments_duration(buffer* buffer) {
+    return buffer->duration;
 }
 
 void print_buffer(buffer* buffer) {

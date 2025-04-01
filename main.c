@@ -5,16 +5,15 @@ Copyright unime.it
 
 #include "buffer.h"
 #include "timer.h"
-#include "cJSON/cJSON.h"
-#include <semaphore.h>
+#include "json/cJSON.h"
 #include "evaluation.h"
 #include "ws/ws.h"
 #include "ws/base64.h"
 
-const int N = 10;
-const int p = 4;
-
 #define USE_MULTITHREADING_FOR_WS 1
+
+int N = 0;
+int p = 0;
 
 timer* stalling_timer;
 timer* evaluation_timer;
@@ -25,11 +24,6 @@ int segments_after_stall = 0;
 
 int last_segment_valid = 0;
 
-sem_t sem;
-sem_t sem_stalls;
-
-pthread_t thread_exec, thread_signal, stalling_thread, thread_send_stalling;
-
 bool running = true;
 
 clock_t start;
@@ -37,37 +31,52 @@ clock_t end;
 
 bool is_stalling = false;
 
+int p_counter = 0;
+
 void* eval_task() {
 
   if(eval_data == NULL) {
     return NULL;
   }
 
-  //->segments_received_in_p = 0;
+  p_counter += 1;
+
+  if(is_stalling) {
+    INFO_LOG("Adding stalling segment in the buffer..");
+    add_element(eval_buffer, -1);
+  }
+
+  if(p_counter < p) {
+    return NULL;
+  }
 
   char command[BUFFER_CMD_SIZE]; // output
   int size = generate_evaluation_command(eval_data, command);
 
-  if(size == 0) {
-    is_stalling = true;
+  if(size == 0) 
+  {
+    if(is_still_stalling(eval_data->buffer))
+    {
+      is_stalling = true;
 
-    INFO_LOG("The window is full of stalls, giving MOS=1 as result");
-    cJSON *result = cJSON_CreateObject();
+      INFO_LOG("The window is full of stalls, giving MOS=1 as result");
+      cJSON *result = cJSON_CreateObject();
 
-    if(result == NULL) {
-      printf("failed creating the result object");
-      return NULL;
-    }
+      if(result == NULL) {
+        printf("failed creating the result object");
+        return NULL;
+      }
 
-    cJSON *output = NULL; 
-    output = cJSON_CreateString("1");
-    cJSON_AddItemToObject(result, "O46", output);
+      cJSON *output = NULL; 
+      output = cJSON_CreateString("1");
+      cJSON_AddItemToObject(result, "O46", output);
 
-    char* output_string = cJSON_Print(result);
+      char* output_string = cJSON_Print(result);
 
-    if(ws_sendframe_txt(1, output_string) == -1) {
-      printf("Error sending back the frame");
-      return NULL;
+      if(ws_sendframe_txt(1, output_string) == -1) {
+        printf("Error sending back the frame");
+        return NULL;
+      }
     }
 
     return NULL;  
@@ -130,7 +139,12 @@ void* eval_task() {
   INFO_LOG("MOS: %f", O46->valuedouble);
 
   if(eval_data->started)
+  {
+
     slice_buffer(eval_data->buffer, eval_data->buffer->K, eval_data->p);
+  }
+
+  p_counter = 0;
 
   free(output_string);
   free(output_json);
@@ -138,68 +152,11 @@ void* eval_task() {
   return NULL;
 }
 
-void* thread_send_signal(void* arg) {
-    while(1) {
-        if(eval_data->started)
-        {
-          //printf("Thread 1: Waking up and signaling thread 2.\n");
-          sem_post(&sem);
-          sleep(p * eval_data->buffer->duration);
-        }
-    }
-    
-    running = false;
-    sem_post(&sem);
-
-    return NULL;
-}
-
-void* thread_execute_eval(void* arg) {
-    while (running) {
-      sem_wait(&sem);
-      eval_task();
-
-      //printf("Thread 2: Received signal and processing.\n");
-    }
-    //printf("Thread 2: Exiting.\n");
-    return NULL;
-}
-
-void* thread_send_stall(void* arg) {
-  while(1) {
-    if(is_stalling) {
-      sem_post(&sem_stalls);
-      sleep(eval_data->buffer->duration);
-    }
-  }
-
-  sem_post(&sem_stalls);  
-  return NULL;
-}
-
 void* stalling_task() {
-  while(1)
-  {
-    if(is_stalling)
-    {
-      sem_wait(&sem_stalls);
-      add_element(eval_buffer, -1);
-      increment_segments_received(eval_data);
+   INFO_LOG("Adding stalling segment in the buffer..");
+   add_element(eval_buffer, -1);
 
-      INFO_LOG("Adding stalling segment to the window");
-    }
-  }
-
-  return NULL;
-}
-
-bool check_file_mode(int argc, char *argv[]) {
-    for (int i = 1; i < argc; i++) {
-        if (strcmp(argv[i], "-f") == 0) {
-            return true;
-        }
-    }
-    return false;
+   return NULL;
 }
 
 
@@ -207,14 +164,14 @@ void onopen(ws_cli_conn_t client)
 {
     char *cli;
     cli = ws_getaddress(client);
-    printf("Connection opened, addr: %s\n", cli);
+    INFO_LOG("Connection opened, addr: %s\n", cli);
 }
 
 void onclose(ws_cli_conn_t client)
 {
     char *cli;
     cli = ws_getaddress(client);
-    printf("Connection closed, addr: %s\n", cli);
+    INFO_LOG("Connection closed, addr: %s\n", cli);
 }
 
 void onmessage(ws_cli_conn_t client,
@@ -228,10 +185,7 @@ void onmessage(ws_cli_conn_t client,
 
     int p = eval_data->p;
     int N = eval_data->N;
-    int segments_received_in_p = eval_data->segments_received_in_p;
     // fix this
-
-    double elapsedTime = 0;
 
     float seconds = (float)(end - start) / CLOCKS_PER_SEC;
 
@@ -271,30 +225,25 @@ void onmessage(ws_cli_conn_t client,
         //INFO_LOG("Skipping segment atoo fast");
       }
 
-      if(segmentNumber < counter) {
+      /*if(segmentNumber < counter) {
         INFO_LOG("Skipping segment after stall");
         //slice_buffer(eval_buffer, 20, 1);
+
+        // Problem: When the system loads other segments after a stall, segments will be
+        // appended in the buffer but what happens if the player skips all these segments?
+        // 1. We can skip segments up to the segment counter hold by the server
+        // 2. We can slice the buffer of 1 in order to re-syncronize with the playout buffer of the player 
+
+        return;
+      }*/
+
+
+      int result = store_segment(segmentNumber, segmentData, segmentDataSize);
+
+      if(result < 0) {
+        ERROR_LOG("Error creating the segment");
         return;
       }
-
-
-      char buf[FILE_PATH_SIZE + sizeof(int)];
-
-      snprintf(buf, sizeof(buf), "./segments/segment-%d.ts", segmentNumber);
-      //printf("%s", buf);
-      
-      FILE* fptr;
-
-    	fptr = fopen(buf, "wb+");
-
-    	if(fptr == NULL) {
-    		printf("Error opening the file");
-    		exit(1);
-    	}
-
-    	fwrite(segmentData, sizeof byteStream[0], segmentDataSize, fptr);
-
-    	fclose(fptr);
 
       if(segmentNumber == (N) && !eval_started(eval_data)) {
         printf("Evaluation can start\n");
@@ -308,14 +257,23 @@ void onmessage(ws_cli_conn_t client,
     //print_buffer(eval_buffer);
 }
 
+void print_usage() {
+    fprintf(stdout,"--------- EVALUATION SYSTEM -------- \n usage: ./main [N] [p] \n N: the window size \n p: the window step \n");
+}
+
 int main(int argc, char** argv) {
 
 	bool file_mode = check_file_mode(argc, argv);
 
 	eval_buffer = create_buffer(100);
 
-  sem_init(&sem, 0, 0);
-  sem_init(&sem_stalls, 0, 0);
+  if(argc < 3) {
+    print_usage();
+    exit(1);
+  }
+
+  N = argc >= 2 ? (int) atoi(argv[1]) : DEFAULT_N;
+  p = argc >= 3 ? (int) atoi(argv[2]) : DEFAULT_P;
 
   if(eval_buffer == NULL) {
     perror("error allocating memory");
@@ -331,13 +289,14 @@ int main(int argc, char** argv) {
     return 1;
   }
 
-  pthread_create(&thread_send_stalling, NULL, thread_send_stall, NULL);
+  //stalling_timer = create_timer_cond(stalling_task, get_segments_duration(eval_buffer), &(is_stalling), true);
 
-  pthread_create(&stalling_thread, NULL, stalling_task, NULL);
+  evaluation_timer = create_timer_cond(eval_task, get_segments_duration(eval_buffer), &(eval_data->started), true);
 
-  pthread_create(&thread_signal, NULL, thread_send_signal, NULL);
-
-  pthread_create(&thread_exec, NULL, thread_execute_eval, NULL);
+  if(evaluation_timer == NULL) {
+    ERROR_LOG("Error creating the timer");
+    exit(1);
+  }
 
 	if(file_mode) {
 		FILE* fptr;
@@ -362,8 +321,7 @@ int main(int argc, char** argv) {
     if(get_counter(eval_buffer) >= N)
     {
       printf("Started evaluation \n");
-      timer* timer = create_timer_cond(eval_task, p, false, true);
-      resume_timer(timer);
+      create_timer_cond(eval_task, p, false, true);
     }
 
 		fclose (fptr); 
@@ -415,17 +373,13 @@ int main(int argc, char** argv) {
       sleep(p * segment_duration);
     }
   }*/
-
- 
-    //printf("Thread 2: Exiting.\n");
-
-  pthread_join(thread_send_stalling, NULL);
-  pthread_join(stalling_thread, NULL);
-  pthread_join(thread_signal, NULL);
-  pthread_join(thread_exec, NULL);
+  
+  //timer_join(stalling_timer);
+  timer_join(evaluation_timer);
 
 
 	free(eval_buffer);
+  free(eval_data);
 
 	return (0);
 }
