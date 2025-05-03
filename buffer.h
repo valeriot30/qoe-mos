@@ -18,14 +18,20 @@
 #endif
 
 
+// define the maximum path size of a single segment
 #define FILE_PATH_SIZE 30
+
+// define how much memory for the segment memory (with 4 bytes you can store up to 2^32 values)
 #define SEGMENT_NUMBER_BYTES 4
+
+// is the playout buffer size known apriori?
 #define PLAYOUT_BUFFER_SIZE
+
 #define BUFFER_CMD_SIZE 1024
 
 struct buffer {
 	int K;
-	int* data;
+	float* data;
 
 	// duration of single elements
 	int duration;
@@ -47,13 +53,14 @@ typedef struct stall stall;
 
 // convert a array of stalls inside the buffer in a string
 void stalls_to_string(stall stalls[], int size, char *output, int output_size);
+
 int get_counter(buffer* buffer);
-buffer* create_buffer(int K);
+buffer* create_buffer(int K, int duration);
 int get_segments_duration(buffer* buffer);
 bool is_still_stalling(buffer* buffer);
 void slice_buffer(buffer* buffer, int n, int slice);
 void print_buffer(buffer* buffer);
 int get_buffer_size(buffer* buffer);
-void add_element(buffer* buffer, int element);
+void add_element(buffer* buffer, float element);
 
 #endif

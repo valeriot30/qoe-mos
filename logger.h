@@ -6,6 +6,15 @@
 #include <string.h>
 #include <time.h>
 
+#define RED   "\x1B[31m"
+#define GRN   "\x1B[32m"
+#define YEL   "\x1B[33m"
+#define BLU   "\x1B[34m"
+#define MAG   "\x1B[35m"
+#define CYN   "\x1B[36m"
+#define WHT   "\x1B[37m"
+#define RESET "\x1B[0m"
+
 static inline char *timenow();
 
 #define _FILE strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__
@@ -26,9 +35,9 @@ static inline char *timenow();
 #define ERROR_TAG "ERROR"
 #define INFO_TAG "INFO"
 
-#define INFO_LOG(msg, args...) PRINTFUNCTION(LOG_FMT msg NEWLINE, LOG_ARGS(INFO_TAG), ##args)
+#define INFO_LOG(msg, args...) PRINTFUNCTION(GRN LOG_FMT RESET msg NEWLINE, LOG_ARGS(INFO_TAG), ##args)
 
-#define ERROR_LOG(msg, args...) PRINTFUNCTION(LOG_FMT msg NEWLINE, LOG_ARGS(ERROR_TAG), ##args)
+#define ERROR_LOG(msg, args...) PRINTFUNCTION(RED LOG_FMT RESET msg NEWLINE, LOG_ARGS(ERROR_TAG), ##args)
 
 
 static inline char *timenow() {

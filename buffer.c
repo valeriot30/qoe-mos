@@ -21,7 +21,7 @@ int get_buffer_size(buffer* buffer) {
     return buffer->K;
 }
 
-void add_element(buffer* buffer, int element) {
+void add_element(buffer* buffer, float element) {
     if(element < -1)
         return;
 
@@ -46,7 +46,7 @@ bool is_still_stalling(buffer* buffer) {
     return buffer->data[buffer->write_idx - 1] == -1;
 }
 
-buffer* create_buffer(int K) {
+buffer* create_buffer(int K, int duration) {
     buffer* buffer_instance = (buffer*) malloc(sizeof(struct buffer));
 
     if(buffer_instance == NULL) {
@@ -54,7 +54,7 @@ buffer* create_buffer(int K) {
         return NULL;
     }
 
-    buffer_instance->data = (int*) calloc(K, sizeof(int));
+    buffer_instance->data = (float*) calloc(K, sizeof(float));
 
     if(buffer_instance->data == NULL) {
         return NULL;
@@ -63,7 +63,7 @@ buffer* create_buffer(int K) {
     buffer_instance->K = K;
     buffer_instance->write_idx = 0;
     buffer_instance->counter = 1;
-    buffer_instance->duration = 2; // in seconds
+    buffer_instance->duration = duration; // in seconds
 
     //pthread_mutex_init(&buffer_instance->lock, NULL);
 

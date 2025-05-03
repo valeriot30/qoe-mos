@@ -17,6 +17,18 @@ bool check_file_mode(int argc, char *argv[]) {
     return false;
 }
 
+// TODO improve this using O(1) and bit ops
+float float_array_mean(float* array, size_t size) {
+
+    int sum = 0;
+
+    for(int i = 0; i < size; i++) {
+        sum += array[i];
+    }
+
+    return sum / (int) size;
+}
+
 int store_segment(int segmentNumber, unsigned char* segmentData, unsigned int segmentDataSize) {
     char buf[FILE_PATH_SIZE + sizeof(int)];
 

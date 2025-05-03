@@ -1,6 +1,8 @@
 main.dSYM/
 venv
 main
+env
 /*.o
+/*.png
 _segments
 segments/*
