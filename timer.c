@@ -33,6 +33,10 @@ void* thread_send_signal(void* arg) {
     }
     unsigned int interval = data->interval;
 
+    struct timespec ts;
+    ts.tv_sec = interval;  // seconds
+    ts.tv_nsec = 0;        // nanoseconds
+
     while(1) {
         bool condition = *(data->condition);
         
@@ -40,12 +44,10 @@ void* thread_send_signal(void* arg) {
         {
           //printf("Thread 1: Waking up and signaling thread 2.\n");
           sem_post(&(data_timer->semaphore));
-          sleep(interval);
         }
+
+        clock_nanosleep(CLOCK_MONOTONIC, 0, &ts, NULL);
     }
-    
-    //running = false;
-    sem_post(&(data_timer->semaphore));
 
     return NULL;
 }
@@ -104,11 +106,17 @@ timer* create_timer_cond(void* task, unsigned int interval, bool* condition, boo
 
   pthread_t thread_signaling, thread_executing;
 
+
+
 	int ret = pthread_create(&(thread_signaling), NULL, thread_send_signal, (timer*) curr_timer);
   ret = pthread_create(&(thread_executing), NULL, thread_execute_task, (timer*) curr_timer);
 	/*#if defined(__APPLE__)
 		pthread_setschedparam(&timer_thread, SCHED_RR, NULL);
 	#endif*/
+
+  
+  pthread_setschedparam(thread_signaling, SCHED_FIFO, NULL);
+  pthread_setschedparam(thread_executing, SCHED_FIFO, NULL);
 
 	if (ret != 0) {
       perror("pthread_create failed");

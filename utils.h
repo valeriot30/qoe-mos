@@ -20,4 +20,5 @@
 long long timeInMilliseconds(void);
 bool check_file_mode(int argc, char *argv[]);
 int store_segment(int segmentNumber, unsigned char* segmentData, unsigned int segmentDataSize);
+float float_array_mean(float* array, size_t size);
 #endif
