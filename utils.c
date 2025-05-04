@@ -20,13 +20,19 @@ bool check_file_mode(int argc, char *argv[]) {
 // TODO improve this using O(1) and bit ops
 float float_array_mean(float* array, size_t size) {
 
-    int sum = 0;
+    float sum = 0;
 
-    for(int i = 0; i < size; i++) {
+    int counter = 0;
+
+    for(size_t i = 0; i < size; i++) {
+
+        if((array[i]) < 1.0) break;
+
         sum += array[i];
+        counter++;
     }
 
-    return sum / (int) size;
+    return counter == 0 ? 0 : sum / counter;
 }
 
 int store_segment(int segmentNumber, unsigned char* segmentData, unsigned int segmentDataSize) {

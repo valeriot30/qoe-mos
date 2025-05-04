@@ -5,4 +5,5 @@ env
 /*.o
 /*.png
 _segments
-segments/*
+segments
+/*.txt
