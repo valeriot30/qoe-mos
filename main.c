@@ -10,11 +10,7 @@ Copyright unime.it
 #include "ws/base64.h"
 #include "ws/ws.h"
 
-#define USE_MULTITHREADING_FOR_WS 1
-
-int N = 0;
-int p = 0;
-int d = 0;
+#define USE_MULTITHREADING_FOR_WS 0
 
 timer* stalling_timer;
 timer* evaluation_timer;
@@ -41,99 +37,123 @@ int gaps_counter = 0;
 int stall_counter = 0;
 
 void* eval_task() {
+
+  // local variables to this function
+  cJSON* output_json;
+  char* output_string;
+
   if (eval_data == NULL) {
     return NULL;
   }
 
-  char command[BUFFER_CMD_SIZE];  // output
-  int size = generate_evaluation_command(eval_data, command);
 
-  if (size == 0) {
-    if (is_stalling) {
-      // is_stalling = true;
+  if(!is_one_step(eval_data))
+  {
+    char command[BUFFER_CMD_SIZE];  // output
+    int size = generate_evaluation_command(eval_data, command);
 
-      INFO_LOG("The window is full of stalls, giving MOS=1 as result");
-      cJSON* result = cJSON_CreateObject();
+    if (size == 0) {
+      if (is_stalling) {
+        // is_stalling = true;
 
-      if (result == NULL) {
-        ERROR_LOG("failed creating the result object");
-        return NULL;
+        INFO_LOG("The window is full of stalls, giving MOS=1 as result");
+        cJSON* result = cJSON_CreateObject();
+
+        if (result == NULL) {
+          ERROR_LOG("failed creating the result object");
+          return NULL;
+        }
+
+        cJSON* output = NULL;
+        output = cJSON_CreateString("1");
+        cJSON_AddItemToObject(result, "O46", output);
+
+        char* output_string = cJSON_Print(result);
+
+        if (ws_sendframe_txt(1, output_string) == -1) {
+          ERROR_LOG("Error sending back the frame");
+          return NULL;
+        }
       }
 
-      cJSON* output = NULL;
-      output = cJSON_CreateString("1");
-      cJSON_AddItemToObject(result, "O46", output);
-
-      char* output_string = cJSON_Print(result);
-
-      if (ws_sendframe_txt(1, output_string) == -1) {
-        ERROR_LOG("Error sending back the frame");
-        return NULL;
-      }
+      goto slice_buffer;
     }
 
-    goto slice_buffer;
+    // disable warning messages (from stdout)
+    freopen(NULL_DEVICE, "w", stderr);
+
+    // printf("Executing command: %s \n", command);
+
+    long long start = timeInMilliseconds();
+
+    FILE* fp = popen(command, "r");
+
+    char path[BUFFER_CMD_SIZE * 2];
+
+    if (fp == NULL) {
+      printf("Failed to run command\n");
+      // exit(1);
+      return NULL;
+    }
+
+    while (fgets(path, sizeof(path), fp) != NULL) {
+      // printf("%s", path);
+    }
+
+    printf("%s", path);
+
+    // re-enable warning messages
+    freopen(TTY_DEVICE, "w", stderr);
+
+    output_json = cJSON_Parse(path);
+
+    if (output_json == NULL) {
+      printf("Failed to parse JSON\n");
+      return NULL;
+    }
+
+    long long end = timeInMilliseconds() - start;
+
+    if ((end / 1000) > eval_data->buffer->duration * eval_data->p) {
+      ERROR_LOG(
+          "Warning: evaluation time [%fs] is greater than duration * p [%ds], "
+          "system may diverge",
+          ((float)end / 1000), eval_data->buffer->duration * eval_data->p);
+    }
+  }
+  else
+  {
+     float avg_mos = float_array_mean(eval_data->buffer->data, eval_data->N);
+
+     INFO_LOG("%f", avg_mos);
+
+     output_json = cJSON_CreateObject();
+
+     cJSON* o46 = NULL;
+
+     o46 = cJSON_CreateNumber(avg_mos);
+
+     cJSON_AddItemToObject(output_json, "O46", o46);
   }
 
-  // disable warning messages (from stdout)
-  freopen(NULL_DEVICE, "w", stderr);
 
-  // printf("Executing command: %s \n", command);
+    int eval_nf = eval_data->nf;
+    int eval_tft = eval_data->tft;
+    int eval_tfm = eval_data->tfm;
 
-  long long start = timeInMilliseconds();
+    cJSON* nf = NULL;
+    cJSON* tfm = NULL;
+    cJSON* tft = NULL;
 
-  FILE* fp = popen(command, "r");
+    tfm = cJSON_CreateNumber(eval_tfm);
+    nf = cJSON_CreateNumber(eval_nf);
+    tft = cJSON_CreateNumber(eval_tft);
 
-  char path[BUFFER_CMD_SIZE * 2];
+    cJSON_AddItemToObject(output_json, "TFM", tfm);
+    cJSON_AddItemToObject(output_json, "TFT", tft);
+    cJSON_AddItemToObject(output_json, "NF", nf);
 
-  if (fp == NULL) {
-    printf("Failed to run command\n");
-    // exit(1);
-    return NULL;
-  }
-
-  while (fgets(path, sizeof(path), fp) != NULL) {
-    // printf("%s", path);
-  }
-
-  printf("%s", path);
-
-  // re-enable warning messages
-  freopen(TTY_DEVICE, "w", stderr);
-
-  cJSON* output_json = cJSON_Parse(path);
-
-  int eval_nf = eval_data->nf;
-  int eval_tft = eval_data->tft;
-  int eval_tfm = eval_data->tfm;
-
-  cJSON* nf = NULL;
-  cJSON* tfm = NULL;
-  cJSON* tft = NULL;
-
-  tfm = cJSON_CreateNumber(eval_tfm);
-  nf = cJSON_CreateNumber(eval_nf);
-  tft = cJSON_CreateNumber(eval_tft);
-
-  cJSON_AddItemToObject(output_json, "TFM", tfm);
-  cJSON_AddItemToObject(output_json, "TFT", tft);
-  cJSON_AddItemToObject(output_json, "NF", nf);
-
-  if (output_json == NULL) {
-    printf("Failed to parse JSON\n");
-    return NULL;
-  }
-
-  long long end = timeInMilliseconds() - start;
-
-  if ((end / 1000) > eval_data->buffer->duration * eval_data->p) {
-    ERROR_LOG(
-        "Warning: evaluation time [%fs] is greater than duration * p [%ds], "
-        "system may diverge",
-        ((float)end / 1000), eval_data->buffer->duration * eval_data->p);
-  }
-
-  char* output_string = cJSON_Print(output_json);
+  output_string = cJSON_Print(output_json);
 
   if (output_string == NULL) {
     ERROR_LOG("Invalid output string");
@@ -170,7 +190,7 @@ slice_buffer:
 
 void* stalling_task() {
   INFO_LOG("Adding stalling segment in the buffer..");
-  add_element(eval_buffer, -1);
+  add_element(eval_buffer, is_one_step(eval_data) ? 1 : -1);
   stall_counter++;
 
   return NULL;
@@ -202,7 +222,7 @@ void onmessage(ws_cli_conn_t client, const unsigned char* msg, uint64_t size,
 
   float seconds = (float)(end - start) / CLOCKS_PER_SEC;
 
-  INFO_LOG("Arrival time of a new segment: %f s \n", (seconds));
+  INFO_LOG("Arrival time of a new segment: %f s", (seconds));
 
   add_arrival_time(eval_data, seconds);
 
@@ -213,7 +233,7 @@ void onmessage(ws_cli_conn_t client, const unsigned char* msg, uint64_t size,
   if (strncmp(msg, "-1", size) == 0) {
     // add_element(eval_buffer, -1);
     INFO_LOG("Adding stalling segment to the window \n");
-    add_element(eval_buffer, -1);
+    add_element(eval_buffer, is_one_step(eval_data) ? 1 : -1);
     increment_nf(eval_data);
     is_stalling = true;
     stall_counter++;
@@ -262,7 +282,7 @@ void onmessage(ws_cli_conn_t client, const unsigned char* msg, uint64_t size,
     unsigned char* segmentData = byteStream + SEGMENT_NUMBER_BYTES;
     size_t segmentDataSize = outlen - SEGMENT_NUMBER_BYTES;
 
-    INFO_LOG("Segment: %d \n", segmentNumber);
+    INFO_LOG("Segment: %d", segmentNumber);
 
     if (eval_started(eval_data) && seconds < eval_data->buffer->duration) {
       // INFO_LOG("Skipping segment atoo fast");
@@ -310,6 +330,8 @@ void onmessage(ws_cli_conn_t client, const unsigned char* msg, uint64_t size,
 
       const cJSON* O46 = cJSON_GetObjectItemCaseSensitive(output_json, "O46");
 
+      INFO_LOG("%f", O46->valuedouble);
+
       add_element(eval_buffer, O46->valuedouble);
     }
     else
@@ -325,36 +347,47 @@ void onmessage(ws_cli_conn_t client, const unsigned char* msg, uint64_t size,
 void print_usage() {
   fprintf(
       stdout,
-      "--------- EVALUATION SYSTEM -------- \n usage: ./main [N] [p] [d] \n N: "
-      "the window size \n p: the window step \n d: the segments duration\n");
+      "--------- EVALUATION SYSTEM -------- \n usage: ./main [N] [p] [d] [one_step] [port] \n N: "
+      "the window size \n p: the window step \n d: the segments duration\n one_step: choose if you want to evaluate N segments in the window or 1 segment at time and then average N MOS \n port: The listening port of the evaluation system \n");
 }
 
 int main(int argc, char** argv) {
   bool file_mode = check_file_mode(argc, argv);
 
-  if (argc < 4) {
+  if (argc < 6) {
     print_usage();
     exit(1);
   }
 
+
+  uint8_t N = 0;
+  uint8_t p = 0;
+  uint8_t d = 0;
+
+
   N = argc >= 2 ? (int)atoi(argv[1]) : DEFAULT_N;
   p = argc >= 3 ? (int)atoi(argv[2]) : DEFAULT_P;
   d = argc >= 4 ? (int)atoi(argv[3]) : DEFAULT_D;
+  
+  uint8_t one_step_mode =  argc >= 5 ? (int)atoi(argv[4]) : 0;
+
+  uint32_t port = argc >= 6 ? (int)atoi(argv[5]) : 0;
+
 
   eval_buffer = create_buffer(100, d);
 
   if (eval_buffer == NULL) {
     perror("error allocating memory");
-    ERROR_LOG("There was an error with the allocation of the array \n");
+    ERROR_LOG("There was an error with the allocation of the array");
     return 1;
   }
 
-  eval_data = create_evaluation_data(N, p, false, eval_buffer);
+  eval_data = create_evaluation_data(N, p, one_step_mode, eval_buffer);
 
   if (eval_data == NULL) {
     perror("error allocating memory");
     ERROR_LOG(
-        "There was an error with the allocation of the evaluation data\n");
+        "There was an error with the allocation of the evaluation data");
     return 1;
   }
 
@@ -373,7 +406,7 @@ int main(int argc, char** argv) {
     fptr = fopen("buffer.txt", "r");
 
     if (fptr == NULL) {
-      printf("Unable to open the file \n");
+      printf("Unable to open the file");
       return 1;
     }
 
@@ -403,8 +436,8 @@ int main(int argc, char** argv) {
                                    * ::        -> global IPv4+IPv6 (Dual stack)
                                    */
                                   .host = "localhost",
-                                  .port = 3000,
-                                  .thread_loop = 0,
+                                  .port = port,
+                                  .thread_loop = USE_MULTITHREADING_FOR_WS,
                                   .timeout_ms = 1000,
                                   .evs.onopen = &onopen,
                                   .evs.onclose = &onclose,

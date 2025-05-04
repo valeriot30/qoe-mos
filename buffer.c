@@ -80,7 +80,7 @@ void print_buffer(buffer* buffer) {
 
 		//if(buffer->data[i] == 0) continue;
 
-		printf("| %d |", buffer->data[i]);
+		printf("| %f |", buffer->data[i]);
 	}
 	printf("\n");
 }

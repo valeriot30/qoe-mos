@@ -1,6 +1,6 @@
 CC = gcc
 CFLAGS = -Wall -Wextra -g
-OBJ = main.o buffer.o evaluation.o timer.o utils.o ./json/cJSON.o ./ws/ws.o ./ws/utf8.o ./ws/sha1.o ./ws/handshake.o ./ws/base64.o
+OBJ = main.o buffer.o evaluation.o timer.o utils.o ./lib/json/cJSON.o ./lib/ws/ws.o ./lib/ws/utf8.o ./lib/ws/sha1.o ./lib/ws/handshake.o ./lib/ws/base64.o
 
 main: $(OBJ)
 	$(CC) $(CFLAGS) -o main $(OBJ)
