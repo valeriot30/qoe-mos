@@ -5,10 +5,10 @@ Copyright unime.it
 
 #include "buffer.h"
 #include "evaluation.h"
-#include "json/cJSON.h"
+#include "lib/json/cJSON.h"
 #include "timer.h"
-#include "ws/base64.h"
-#include "ws/ws.h"
+#include "lib/ws/base64.h"
+#include "lib/ws/ws.h"
 
 #define USE_MULTITHREADING_FOR_WS 0
 
@@ -368,7 +368,7 @@ int main(int argc, char** argv) {
   N = argc >= 2 ? (int)atoi(argv[1]) : DEFAULT_N;
   p = argc >= 3 ? (int)atoi(argv[2]) : DEFAULT_P;
   d = argc >= 4 ? (int)atoi(argv[3]) : DEFAULT_D;
-  
+
   uint8_t one_step_mode =  argc >= 5 ? (int)atoi(argv[4]) : 0;
 
   uint32_t port = argc >= 6 ? (int)atoi(argv[5]) : 0;

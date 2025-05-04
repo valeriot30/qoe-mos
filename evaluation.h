@@ -4,10 +4,10 @@
 #include "buffer.h"
 #include "timer.h"
 
-#include "json/cJSON.h"
+#include "lib/json/cJSON.h"
 #include "evaluation.h"
-#include "ws/ws.h"
-#include "ws/base64.h"
+#include "lib/ws/ws.h"
+#include "lib/ws/base64.h"
 
 #define DEFAULT_N 10
 #define DEFAULT_P 4
