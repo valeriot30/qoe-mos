@@ -297,7 +297,7 @@ void onmessage(ws_cli_conn_t client, const unsigned char* msg, uint64_t size,
       // appended in the buffer but what happens if the player skips all these
     segments?
       // 1. We can skip segments up to the segment counter hold by the server
-      // 2. We can slice the buffer of 1 in order to re-syncronize with the
+      // 2. We can slice the buffer of k segments in order to re-syncronize with the
     playout buffer of the player
 
       return;
@@ -347,34 +347,101 @@ void onmessage(ws_cli_conn_t client, const unsigned char* msg, uint64_t size,
 void print_usage() {
   fprintf(
       stdout,
-      "--------- EVALUATION SYSTEM -------- \n usage: ./main [N] [p] [d] [one_step] [port] \n N: "
-      "the window size \n p: the window step \n d: the segments duration\n one_step: choose if you want to evaluate N segments in the window or 1 segment at time and then average N MOS \n port: The listening port of the evaluation system \n");
+      "--------- EVALUATION SYSTEM -------- \n usage: ./main [N] [p] [d] [one_step] [port] [mode] \n N: "
+      "the window size \n p: the window step \n d: the segments duration\n one_step: choose if you want to evaluate N segments in the window or 1 segment at time and then average N MOS \n port: The listening port of the evaluation system \n"
+      " mode: the mode of operation for the ITU standard \n"
+      "\n usage: ./main [config_file] \n"  
+      " [config_file] is a json file containing all the parameters. See config.example.json \n"
+      );
 }
 
 int main(int argc, char** argv) {
-  bool file_mode = check_file_mode(argc, argv);
 
-  if (argc < 6) {
+  if(argc < 2) {
     print_usage();
     exit(1);
   }
 
-
   uint8_t N = 0;
   uint8_t p = 0;
   uint8_t d = 0;
+  uint32_t port = 0;
+  uint8_t one_step_mode = 0;
+
+  unsigned int mode = 0;
+
+  const char *filename = argv[1];
+  const char *ext = strrchr(filename, '.');
+
+  if(ext != NULL && strcmp(ext, ".json") == 0)
+  {
+    char buffer[1024];
+
+    FILE *fptr = fopen(filename, "r");
+
+    if(fptr == NULL) {
+      ERROR_LOG("Cannot find file");
+    }
+    int len = fread(buffer, 1, sizeof(buffer), fptr); 
+      
+    fclose(fptr);
+
+    cJSON *config_file = cJSON_Parse(buffer);
+
+    if (config_file == NULL)
+    {
+        const char *error_ptr = cJSON_GetErrorPtr();
+        if (error_ptr != NULL)
+        {
+            ERROR_LOG("Error before: %s\n", error_ptr);
+        }
+        cJSON_Delete(config_file); 
+        exit(1);
+    }
+
+    const cJSON *Nobj = cJSON_GetObjectItemCaseSensitive(config_file, "N");
+    const cJSON *pobj = cJSON_GetObjectItemCaseSensitive(config_file, "p");
+    const cJSON *dobj = cJSON_GetObjectItemCaseSensitive(config_file, "d");
+    const cJSON *portobject = cJSON_GetObjectItemCaseSensitive(config_file, "port");
+    const cJSON *onestepobject= cJSON_GetObjectItemCaseSensitive(config_file, "one_step");
+
+    if(cJSON_IsNumber(Nobj) && Nobj->valueint > 0)
+      N = Nobj->valueint;
+
+    if(cJSON_IsNumber(pobj) && dobj->valueint > 0)
+      d = dobj->valueint;
+
+    if(cJSON_IsNumber(dobj) && pobj->valueint > 0)
+      p = pobj->valueint;
+
+    if(cJSON_IsNumber(portobject) && portobject->valueint > 0)
+      port = portobject->valueint;
+
+    if(cJSON_IsNumber(onestepobject) && onestepobject->valueint != NULL)
+      one_step_mode = onestepobject->valueint;
+  }
+  else 
+  {
+
+    if (argc < 7) {
+      print_usage();
+      exit(1);
+    }
+
+    N = argc >= 2 ?              (int)atoi(argv[1]) : DEFAULT_N;
+    p = argc >= 3 ?              (int)atoi(argv[2]) : DEFAULT_P;
+    d = argc >= 4 ?              (int)atoi(argv[3]) : DEFAULT_D;
+    one_step_mode =  argc >= 5 ? (int)atoi(argv[4]) : 0;
+    port = argc >= 6 ?           (int)atoi(argv[5]) : 0;
+    mode = argc >= 7 ?           (int)atoi(argv[6]) : 0;
+
+    if(mode > 3 || mode < 0) {
+      mode = 0;
+    } 
+  }
 
 
-  N = argc >= 2 ? (int)atoi(argv[1]) : DEFAULT_N;
-  p = argc >= 3 ? (int)atoi(argv[2]) : DEFAULT_P;
-  d = argc >= 4 ? (int)atoi(argv[3]) : DEFAULT_D;
-
-  uint8_t one_step_mode =  argc >= 5 ? (int)atoi(argv[4]) : 0;
-
-  uint32_t port = argc >= 6 ? (int)atoi(argv[5]) : 0;
-
-
-  eval_buffer = create_buffer(100, d);
+  eval_buffer = create_buffer(1000, d);
 
   if (eval_buffer == NULL) {
     perror("error allocating memory");
@@ -382,7 +449,7 @@ int main(int argc, char** argv) {
     return 1;
   }
 
-  eval_data = create_evaluation_data(N, p, one_step_mode, eval_buffer);
+  eval_data = create_evaluation_data(N, p, one_step_mode, mode, eval_buffer);
 
   if (eval_data == NULL) {
     perror("error allocating memory");
@@ -390,6 +457,8 @@ int main(int argc, char** argv) {
         "There was an error with the allocation of the evaluation data");
     return 1;
   }
+
+  INFO_LOG("Initialized evaluation with N: %d, p: %d, d: %d in mode %d", N, p, d, mode);
 
   stalling_timer = create_timer_cond(stalling_task, get_segments_duration(eval_buffer), &(is_stalling), true);
   evaluation_timer = create_timer_cond(eval_task, p * get_segments_duration(eval_buffer),
@@ -400,36 +469,13 @@ int main(int argc, char** argv) {
     exit(1);
   }
 
-  if (file_mode) {
-    FILE* fptr;
+  INFO_LOG("Starting evaluation...\n");
 
-    fptr = fopen("buffer.txt", "r");
+  start = clock();
 
-    if (fptr == NULL) {
-      printf("Unable to open the file");
-      return 1;
-    }
+  INFO_LOG("Listening on port %d", port);
 
-    fflush(stdin);
-    int i = 0;
-    while (!feof(fptr)) {
-      fscanf(fptr, "%d", &i);
-      add_element(eval_buffer, i);
-      printf("%d \n", i);
-    }
-
-    if (get_counter(eval_buffer) >= N) {
-      printf("Started evaluation \n");
-      // create_timer_cond(eval_task, p, false, true);
-    }
-
-    fclose(fptr);
-  } else {
-    INFO_LOG("Starting evaluation...\n");
-
-    start = clock();
-
-    ws_socket(&(struct ws_server){/*
+  ws_socket(&(struct ws_server){/*
                                    * Bind host, such as:
                                    * localhost -> localhost/127.0.0.1
                                    * 0.0.0.0   -> global IPv4
@@ -442,8 +488,6 @@ int main(int argc, char** argv) {
                                   .evs.onopen = &onopen,
                                   .evs.onclose = &onclose,
                                   .evs.onmessage = &onmessage});
-  }
-
   timer_join(stalling_timer);
   timer_join(evaluation_timer);
 

@@ -10,6 +10,10 @@ bool is_one_step(evaluation_data* data) {
   return data->one_step;
 }
 
+int get_mode(evaluation_data* data) {
+  return data->mode;
+}
+
 /**
  * Note: duration must be a multiple of duration inside buffer.h
  * 
@@ -54,6 +58,14 @@ int evaluate_segment(evaluation_data* data, int segmentNumber, char* output) {
 
       // re-enable warning messages
       freopen(TTY_DEVICE, "w", stderr);
+
+      char buffs[16];
+
+      snprintf(buffs, sizeof(buffs), "-m %d", get_mode(data));
+
+      strcat(command, buffs);
+
+      //printf("%s", command);
 
       memcpy(output, path, sizeof(path));
 }
@@ -123,6 +135,14 @@ int generate_evaluation_command(evaluation_data* data, char* output) {
 
   strcat(command, tmp);
 
+  char buf[16];
+
+  snprintf(buf, sizeof(buf), "-m %d", get_mode(data));
+
+  strcat(command, buf);
+
+  //printf("%s", command);
+
   memcpy(output, command, sizeof(command));
 
   return size;
@@ -156,7 +176,7 @@ bool eval_started(evaluation_data* data) {
  * one step is for evaluating the segment one at time, e.g you evaluate one segment and you store the MOS
  * in the buffer, then you you evaluate N MOS inside the buffer by averaging
 **/
-evaluation_data* create_evaluation_data(int N, int p, bool one_step, buffer* assigned_buffer) {
+evaluation_data* create_evaluation_data(int N, int p, bool one_step, int mode, buffer* assigned_buffer) {
   evaluation_data* data = (evaluation_data*) malloc(sizeof(struct evaluation_data));
 
   if(data == NULL) {
@@ -172,10 +192,9 @@ evaluation_data* create_evaluation_data(int N, int p, bool one_step, buffer* ass
   data->arrivals = calloc(200, sizeof(float));
   data->departures = calloc(200, sizeof(float));
 
-  INFO_LOG("Initialized evaluation with N: %d, p: %d", data->N, data->p);
-
   data->started = false;
   data->one_step = one_step;
+  data->mode = mode;
   data->buffer = assigned_buffer;
   data->last_output = NULL;
 
@@ -187,7 +206,7 @@ void print_evaluation_window(evaluation_data* data) {
 
     if(data->buffer->data[i] == 0) continue;
 
-    printf("| %d |", data->buffer->data[i]);
+    printf("| %f |", data->buffer->data[i]);
   }
   printf("\n");
 }

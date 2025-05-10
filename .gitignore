@@ -26,3 +26,5 @@ segments
 /*.txt
 
 .DS_Store
+
+config.json
