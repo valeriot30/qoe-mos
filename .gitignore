@@ -21,7 +21,7 @@ env
 /*.png
 
 _segments
-segments
+/segments
 
 /*.txt
 

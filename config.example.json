@@ -1,1 +1,8 @@
-config.example.json
+{
+	"N": 10,
+	"p": 4,
+	"d": 2,
+	"one_step": 1,
+	"port": 3000,
+	"mode": 1
+}
