@@ -23,6 +23,8 @@ struct evaluation_data {
 
 	bool one_step;
 
+	int mode;
+
 	buffer* buffer;
 
 	// total number of stalls
@@ -51,5 +53,6 @@ void set_started(evaluation_data* data, bool state);
 bool eval_started(evaluation_data* data);
 bool is_one_step(evaluation_data* data);
 int evaluate_segment(evaluation_data* data, int segmentNumber, char* output);
-evaluation_data* create_evaluation_data(int N, int p, bool one_step, buffer* assigned_buffer);
+int get_mode(evaluation_data* data);
+evaluation_data* create_evaluation_data(int N, int p, bool one_step, int mode, buffer* assigned_buffer);
 #endif
