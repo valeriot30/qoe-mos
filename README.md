@@ -80,7 +80,8 @@ The input JSON file (see files in `config.example.json`) must have at least the 
 	"p": 4,
 	"d": 2,
 	"one_step": 1,
-	"port": 3000
+	"port": 3000,
+	"mode": 1
 }
 ```
 You can pass a config file via
