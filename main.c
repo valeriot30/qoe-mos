@@ -368,7 +368,7 @@ int main(int argc, char** argv) {
   uint32_t port = 0;
   uint8_t one_step_mode = 0;
 
-  unsigned int mode = 0;
+  int mode = 0;
 
   const char *filename = argv[1];
   const char *ext = strrchr(filename, '.');
@@ -404,6 +404,7 @@ int main(int argc, char** argv) {
     const cJSON *dobj = cJSON_GetObjectItemCaseSensitive(config_file, "d");
     const cJSON *portobject = cJSON_GetObjectItemCaseSensitive(config_file, "port");
     const cJSON *onestepobject= cJSON_GetObjectItemCaseSensitive(config_file, "one_step");
+    const cJSON *modeobject= cJSON_GetObjectItemCaseSensitive(config_file, "mode");
 
     if(cJSON_IsNumber(Nobj) && Nobj->valueint > 0)
       N = Nobj->valueint;
@@ -419,6 +420,9 @@ int main(int argc, char** argv) {
 
     if(cJSON_IsNumber(onestepobject) && onestepobject->valueint != NULL)
       one_step_mode = onestepobject->valueint;
+
+    if(cJSON_IsNumber(modeobject) && modeobject->valueint != NULL)
+      mode = modeobject->valueint;
   }
   else 
   {

@@ -159,9 +159,9 @@ void add_arrival_time(evaluation_data* data, float arrival_time) {
 void add_departure_time(evaluation_data* data, float departure_time) {
   int counter = get_counter(data->buffer);
 
-  data->arrivals[counter] = departure_time;
+  data->departures[counter] = departure_time;
 
-  INFO_LOG("Avg departure time: %f", float_array_mean(data->arrivals, counter));
+  INFO_LOG("Avg departure time: %f", float_array_mean(data->departures, counter));
 }
 
 void set_started(evaluation_data* data, bool state) {
