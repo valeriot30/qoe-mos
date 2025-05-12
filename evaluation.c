@@ -68,6 +68,8 @@ int evaluate_segment(evaluation_data* data, int segmentNumber, char* output) {
       //printf("%s", command);
 
       memcpy(output, path, sizeof(path));
+
+      return 1;
 }
 
 int generate_evaluation_command(evaluation_data* data, char* output) {

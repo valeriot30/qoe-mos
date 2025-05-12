@@ -444,6 +444,7 @@ int main(int argc, char** argv) {
     } 
   }
 
+  is_stalling = false;
 
   eval_buffer = create_buffer(1000, d);
 

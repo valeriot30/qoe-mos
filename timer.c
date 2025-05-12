@@ -33,9 +33,11 @@ void* thread_send_signal(void* arg) {
     }
     unsigned int interval = data->interval;
 
-    struct timespec ts;
-    ts.tv_sec = interval;  // seconds
-    ts.tv_nsec = 0;        // nanoseconds
+    #ifndef __APPLE__
+      struct timespec ts;
+      ts.tv_sec = interval;  // seconds
+      ts.tv_nsec = 0;        // nanoseconds
+    #endif
 
     while(1) {
         bool condition = *(data->condition);
@@ -46,11 +48,16 @@ void* thread_send_signal(void* arg) {
           sem_post(&(data_timer->semaphore));
         }
 
-        clock_nanosleep(CLOCK_MONOTONIC, 0, &ts, NULL);
+        #ifndef __APPLE__
+          clock_nanosleep(CLOCK_MONOTONIC, 0, &ts, NULL);
+        #else
+          sleep(data->interval);
+        #endif
     }
 
     return NULL;
 }
+
 
 void* thread_execute_task(void* arg) {
     
@@ -87,13 +94,14 @@ timer* create_timer_cond(void* task, unsigned int interval, bool* condition, boo
   }
 
 	struct timer_data* thread_timer_data = (struct timer_data*) malloc(sizeof(struct timer_data));
-	thread_timer_data->start = timeInMilliseconds();
 
-	if (thread_timer_data == NULL) {
+
+  if (thread_timer_data == NULL) {
         perror("malloc failed");
         return NULL;
-    }
+  }
 
+	thread_timer_data->start = timeInMilliseconds();
 
   thread_timer_data->interval = interval;
   thread_timer_data->condition = condition;
@@ -107,16 +115,11 @@ timer* create_timer_cond(void* task, unsigned int interval, bool* condition, boo
   pthread_t thread_signaling, thread_executing;
 
 
-
 	int ret = pthread_create(&(thread_signaling), NULL, thread_send_signal, (timer*) curr_timer);
   ret = pthread_create(&(thread_executing), NULL, thread_execute_task, (timer*) curr_timer);
 	/*#if defined(__APPLE__)
 		pthread_setschedparam(&timer_thread, SCHED_RR, NULL);
 	#endif*/
-
-  
-  pthread_setschedparam(thread_signaling, SCHED_FIFO, NULL);
-  pthread_setschedparam(thread_executing, SCHED_FIFO, NULL);
 
 	if (ret != 0) {
       perror("pthread_create failed");
@@ -124,6 +127,10 @@ timer* create_timer_cond(void* task, unsigned int interval, bool* condition, boo
       free(curr_timer);
       return NULL;
   }
+
+
+  pthread_setschedparam(thread_signaling, SCHED_FIFO, NULL);
+  pthread_setschedparam(thread_executing, SCHED_FIFO, NULL);
 
   curr_timer->thread_signaling = thread_signaling;
   curr_timer->thread_executing = thread_executing;
@@ -134,8 +141,15 @@ timer* create_timer_cond(void* task, unsigned int interval, bool* condition, boo
 } 
 
 void timer_join(timer* timer) {
+
+  if(timer == NULL) {
+    return;
+  }
+
   pthread_join(timer->thread_signaling, NULL);
   pthread_join(timer->thread_executing, NULL);
 
-  sem_destroy(&(timer->semaphore));
+  #ifndef __APPLE__
+    sem_destroy(&(timer->semaphore));
+  #endif
 }

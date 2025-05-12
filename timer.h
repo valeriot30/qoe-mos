@@ -18,6 +18,8 @@
 #include "utils.h"
 #include "logger.h"
 
+#define NULL ((void *) 0
+
 struct timer_data {
 	unsigned int interval;
 	bool* condition;
