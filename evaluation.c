@@ -144,9 +144,6 @@ int generate_evaluation_command(evaluation_data* data, char* output) {
   snprintf(buf, sizeof(buf), " -m %d", get_mode(data));
 
   strcat(command, buf);
-
-  printf("%s", command);
-
   //printf("%s", command);
 
   memcpy(output, command, sizeof(command));

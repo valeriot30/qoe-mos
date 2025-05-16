@@ -274,18 +274,7 @@ void onmessage(ws_cli_conn_t client, const unsigned char* msg, uint64_t size,
 
     unsigned char* byteStream = base64_decode(msg, (size_t)size, &outlen);
 
-    /*if(byteStream == NULL) {
-      return;
-    }*/
-
-    // fix the endianess
-    int segmentNumber;
-    memcpy(&segmentNumber, byteStream, SEGMENT_NUMBER_BYTES);
-
-    unsigned char* segmentData = byteStream + SEGMENT_NUMBER_BYTES;
-    size_t segmentDataSize = outlen - SEGMENT_NUMBER_BYTES;
-
-    INFO_LOG("Segment: %d", segmentNumber);
+    INFO_LOG("Segment: %d", counter);
 
     if (eval_started(eval_data) && seconds < eval_data->buffer->duration) {
       // INFO_LOG("Skipping segment atoo fast");
@@ -306,14 +295,14 @@ void onmessage(ws_cli_conn_t client, const unsigned char* msg, uint64_t size,
       return;
     }*/
 
-    int result = store_segment(segmentNumber, segmentData, segmentDataSize);
+    int result = store_segment(counter, byteStream, outlen);
 
     if (result < 0) {
       ERROR_LOG("Error creating the segment");
       return;
     }
 
-    if (segmentNumber == (N) && !eval_started(eval_data)) {
+    if (counter == (N) && !eval_started(eval_data)) {
       INFO_LOG("Evaluation can start\n");
       set_started(eval_data, true);
     }
@@ -323,10 +312,10 @@ void onmessage(ws_cli_conn_t client, const unsigned char* msg, uint64_t size,
     {
       char output[BUFFER_CMD_SIZE * 2];
 
-      int result = evaluate_segment(eval_data, segmentNumber, output);
+      int result = evaluate_segment(eval_data, counter, output);
 
       if(result == -1) {
-        ERROR_LOG("Error evaluating segment %d", segmentNumber);
+        ERROR_LOG("Error evaluating segment %d", counter);
       }
 
       cJSON* output_json = cJSON_Parse(output);
@@ -339,7 +328,7 @@ void onmessage(ws_cli_conn_t client, const unsigned char* msg, uint64_t size,
     }
     else
     {
-      add_element(eval_buffer, (int) segmentNumber);
+      add_element(eval_buffer, (int) counter);
     }
   }
 
