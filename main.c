@@ -19,8 +19,6 @@ evaluation_data* eval_data;
 
 int segments_after_stall = 0;
 
-int last_segment_valid = 0;
-
 bool running = true;
 
 clock_t start;
@@ -343,7 +341,6 @@ void onmessage(ws_cli_conn_t client, const unsigned char* msg, uint64_t size,
     {
       add_element(eval_buffer, (int) segmentNumber);
     }
-    last_segment_valid = counter;
   }
 
   // print_buffer(eval_buffer);
@@ -431,7 +428,6 @@ int main(int argc, char** argv) {
   }
   else 
   {
-
     if (argc < 7) {
       print_usage();
       exit(1);
@@ -467,7 +463,7 @@ int main(int argc, char** argv) {
     return 1;
   }
 
-  INFO_LOG("Initialized evaluation with N: %d, p: %d, d: %d in mode %d", N, p, d, mode);
+  INFO_LOG("Initialized evaluation with N: %d, p: %d, d: %d, one_step: %d, in mode %d", N, p, d, one_step_mode, mode);
 
   stalling_timer = create_timer_cond(stalling_task, get_segments_duration(eval_buffer), &(is_stalling), true);
   evaluation_timer = create_timer_cond(eval_task, p * get_segments_duration(eval_buffer),
@@ -499,24 +495,6 @@ int main(int argc, char** argv) {
                                   .evs.onmessage = &onmessage});
   timer_join(stalling_timer);
   timer_join(evaluation_timer);
-
-  /*long long start = 0;
-  long long end = 0;
-
-  while(1) {
-    if(eval_data->started) {
-
-      if(start > 0)
-        end = timeInMilliseconds() - start;
-
-      printf("Time took: %lld ms \n", end);
-
-      eval_task();
-      start = timeInMilliseconds();
-      sleep(p * segment_duration);
-    }
-  }*/
-
   free(eval_buffer);
   free(eval_data);
 

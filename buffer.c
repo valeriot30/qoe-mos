@@ -99,7 +99,7 @@ void print_buffer(buffer* buffer, bool debug) {
 	
 	for(int i = 0; i < buffer->K; i++) {
 
-		if(buffer->data[i] && !debug == 0) continue;
+		if(buffer->data[i] == 0) continue;
 
         if(i == buffer->read_idx && debug) {
             printf(GRN);

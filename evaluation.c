@@ -7,7 +7,7 @@ void increment_nf(evaluation_data* data) {
 }
 
 bool is_one_step(evaluation_data* data) {
-  return data->one_step;
+  return data->one_step > 0;
 }
 
 int get_mode(evaluation_data* data) {
@@ -68,6 +68,8 @@ int evaluate_segment(evaluation_data* data, int segmentNumber, char* output) {
       //printf("%s", command);
 
       memcpy(output, path, sizeof(path));
+
+      return 1;
 }
 
 int generate_evaluation_command(evaluation_data* data, char* output) {
@@ -75,6 +77,8 @@ int generate_evaluation_command(evaluation_data* data, char* output) {
   float* buffer = data->buffer->data;
 
   int K = get_buffer_size(data->buffer);
+
+  int array_size = data->N >> 1;
 
   stall stalls[K];
 
@@ -137,9 +141,11 @@ int generate_evaluation_command(evaluation_data* data, char* output) {
 
   char buf[16];
 
-  snprintf(buf, sizeof(buf), "-m %d", get_mode(data));
+  snprintf(buf, sizeof(buf), " -m %d", get_mode(data));
 
   strcat(command, buf);
+
+  printf("%s", command);
 
   //printf("%s", command);
 
@@ -209,85 +215,4 @@ void print_evaluation_window(evaluation_data* data) {
     printf("| %f |", data->buffer->data[i]);
   }
   printf("\n");
-}
-
-void* evaluation_task(evaluation_data* data) {
-
-  if(data == NULL){
-    exit(1);
-  }
-
-  char command[1024]; // output
-  generate_evaluation_command(data, command);
-
-  // disable warning messages (from stdout)
-  freopen(NULL_DEVICE, "w", stderr);
-
-  //printf("Executing command: %s \n", command);
-
-  long long start = timeInMilliseconds();
-
-  FILE* fp = popen(command, "r");
-
-  char path[2048];
-
-  if (fp == NULL) {
-    printf("Failed to run command\n" );
-    exit(1);
-  }
-
-  while (fgets(path, sizeof(path), fp) != NULL) {
-    //printf("%s", path);
-  }
-
-  // re-enable warning messages
-  freopen(TTY_DEVICE, "w", stderr);
-
-  cJSON *output_json = cJSON_Parse(path);
-
-  if(output_json == NULL) {
-  	 printf("Failed to parse JSON\n" );
-  	 exit(1);
-  }
-
-  long long end = timeInMilliseconds() - start;
-
-  if((end) > data->p){
-    ERROR_LOG("Warning: evaluation time [%f] is greater than p, system may diverge", (float) end / 1000);
-  }
-
-  char *output_string = cJSON_Print(output_json);
-
-  if(output_string == NULL) {
-    return NULL;
-  }
-
-  /*int result = ws_sendframe_txt(1, output_string);
-
-  if(result == -1) {
-  	printf("Error sending back the frame");
-  	exit(1);
-  }*/
-
-  //const cJSON* O46 = cJSON_GetObjectItemCaseSensitive(output_json, "O46");
-  print_buffer(data->buffer);
-
-  if(data->last_output != NULL) {
-    free(data->last_output);
-  }
-
-  data->last_output = (char*) malloc(sizeof(char) * (strlen(output_string) + 1));
-  strcpy(data->last_output, output_string);
-
-  //INFO_LOG("MOS");
-
-  if(data->started)
-    slice_buffer(data->buffer, data->buffer->K, (data->p));
-
-  //data->segments_received_in_p = 0;
-
-  free(output_string);
-  free(output_json);
-
-  return NULL;
 }
