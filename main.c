@@ -123,7 +123,7 @@ void* eval_task() {
   }
   else
   {
-     float avg_mos = float_array_mean(eval_data->buffer->data, eval_data->N);
+     float avg_mos = buffer_data_avg(eval_data->buffer, eval_data->N);
 
      INFO_LOG("%f", avg_mos);
 
@@ -173,7 +173,7 @@ void* eval_task() {
     ERROR_LOG("Cannot get MOS value");
   }
 
-  print_buffer(eval_data->buffer);
+  print_buffer(eval_data->buffer, true);
 
   INFO_LOG("MOS: %f", O46->valuedouble);
 
@@ -182,7 +182,12 @@ void* eval_task() {
 
 slice_buffer:
   if (eval_data->started) {
-    slice_buffer(eval_data->buffer, eval_data->buffer->K, eval_data->p);
+    if(!is_one_step(eval_data))
+    {
+      slice_buffer(eval_data->buffer, eval_data->buffer->K, eval_data->p);
+    } else {
+      update_read_idx(eval_data->buffer, eval_data->p);
+    }
   }
 
   return NULL;

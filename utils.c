@@ -24,7 +24,7 @@ float float_array_mean(float* array, size_t size) {
 
     int counter = 0;
 
-    for(size_t i = 0; i < size; i++) {
+    for(int i = 0; i < size; i++) {
 
         if((array[i]) < 1.0) break;
 

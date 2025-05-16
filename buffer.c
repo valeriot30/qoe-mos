@@ -41,6 +41,26 @@ void add_element(buffer* buffer, float element) {
     return;
 }
 
+void update_read_idx(buffer* buffer, int quantity) {
+    buffer->read_idx += quantity;
+}
+
+float buffer_data_avg(buffer* buffer, int quantity) {
+    float sum = 0;
+
+    int counter = 0;
+
+    for(int i = buffer->read_idx; i < quantity; i++) {
+
+        if((buffer->data[i]) < 1.0) break;
+
+        sum += buffer->data[i];
+        counter++;
+    }
+
+    return counter == 0 ? 0 : sum / counter;
+}
+
 // check if the last element of the array is -1
 bool is_still_stalling(buffer* buffer) {
     return buffer->data[buffer->write_idx - 1] == -1;
@@ -63,6 +83,7 @@ buffer* create_buffer(int K, int duration) {
     buffer_instance->K = K;
     buffer_instance->write_idx = 0;
     buffer_instance->counter = 1;
+    buffer_instance->read_idx = 0;
     buffer_instance->duration = duration; // in seconds
 
     //pthread_mutex_init(&buffer_instance->lock, NULL);
@@ -74,13 +95,21 @@ int get_segments_duration(buffer* buffer) {
     return buffer->duration;
 }
 
-void print_buffer(buffer* buffer) {
+void print_buffer(buffer* buffer, bool debug) {
 	
 	for(int i = 0; i < buffer->K; i++) {
 
-		//if(buffer->data[i] == 0) continue;
+		if(buffer->data[i] && !debug == 0) continue;
+
+        if(i == buffer->read_idx && debug) {
+            printf(GRN);
+        }
 
 		printf("| %f |", buffer->data[i]);
+
+        if(i == buffer->read_idx && debug) {
+            printf(RESET);
+        }
 	}
 	printf("\n");
 }

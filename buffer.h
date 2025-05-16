@@ -7,6 +7,7 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include "logger.h"
 
 // this is for disabling stderr messages (for the itu-t standard)
 #ifdef _WIN32
@@ -41,6 +42,8 @@ struct buffer {
 
 	int write_idx;
 
+	int read_idx;
+
 	pthread_mutex_t lock;
 };
 
@@ -58,9 +61,11 @@ int get_counter(buffer* buffer);
 buffer* create_buffer(int K, int duration);
 int get_segments_duration(buffer* buffer);
 bool is_still_stalling(buffer* buffer);
+void update_read_idx(buffer* buffer, int quantity);
 void slice_buffer(buffer* buffer, int n, int slice);
-void print_buffer(buffer* buffer);
+void print_buffer(buffer* buffer, bool debug);
 int get_buffer_size(buffer* buffer);
 void add_element(buffer* buffer, float element);
+float buffer_data_avg(buffer* buffer, int quantity);
 
 #endif
